@@ -275,7 +275,6 @@ view: order_items {
   }
 
   ########## repeat purchases ##########
-
   dimension: days_until_next_order {
     view_label: "Repeat Purchase Facts"
     type: number
@@ -304,6 +303,16 @@ view: order_items {
     value_format_name: percent_1
     sql: 1.0 * ${count_with_repeat_purchase_within_30d}/NULLIF(${count},0) ;;
     drill_fields: [products.brand, order_count, count_with_repeat_purchase_within_30d, 30d_repeat_purchase_rate]
+  }
+
+  measure: first_purchase_count {
+    view_label: "Orders"
+    type: count_distinct
+    sql: ${order_id} ;;
+    filters: {
+      field: order_facts.is_first_purchase
+      value: "Yes"
+    }
   }
 
   ########## Sets ##########
