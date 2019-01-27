@@ -16,6 +16,7 @@ view: order_items {
   }
 
   dimension: order_id {
+    view_label: "Orders"
     type: number
     sql: ${TABLE}.order_id ;;
   }
@@ -271,6 +272,38 @@ view: order_items {
     type: number
     value_format_name: percent_2
     sql: 1.0 * ${returned_count}/NULLIF(${count},0) ;;
+  }
+
+  ########## repeat purchases ##########
+
+  dimension: days_until_next_order {
+    view_label: "Repeat Purchase Facts"
+    type: number
+    sql: datediff('days', ${created_raw}, ${repeat_purchase_facts.next_order_raw}) ;;
+  }
+
+  dimension: is_next_order_within_30d {
+    view_label: "Repeat Purchase Facts"
+    type: yesno
+    sql: ${days_until_next_order} <= 30 ;;
+  }
+
+  measure: count_with_repeat_purchase_within_30d  {
+    view_label: "Repeat Purchase Facts"
+    type: count
+    filters: {
+      field: is_next_order_within_30d
+      value: "Yes"
+    }
+  }
+
+  measure: 30d_repeat_purchase_rate {
+    view_label: "Repeat Purchase Facts"
+    description: "The percentage of customers who purchase again within 30 days"
+    type: number
+    value_format_name: percent_1
+    sql: 1.0 * ${count_with_repeat_purchase_within_30d}/NULLIF(${count},0) ;;
+    drill_fields: [products.brand, order_count, count_with_repeat_purchase_within_30d, 30d_repeat_purchase_rate]
   }
 
   ########## Sets ##########

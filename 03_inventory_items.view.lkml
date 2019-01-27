@@ -153,6 +153,18 @@ view: inventory_items {
     sql: ${TABLE}.cost ;;
   }
 
+  measure: total_cost {
+    type: sum
+    value_format_name: usd
+    sql: ${cost} ;;
+  }
+
+  measure: average_cost {
+    type: number
+    value_format_name: usd
+    sql: ${cost} ;;
+  }
+
   ########## sets ##########
 
   set: detail {

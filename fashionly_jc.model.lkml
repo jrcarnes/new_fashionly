@@ -17,20 +17,43 @@ explore: order_items {
     sql_on: ${order_items.user_id} = ${users.id} ;;
     relationship: many_to_one
   }
+
+  join: user_order_facts {
+    view_label: "Purchasing Users"
+    type: left_outer
+    sql_on: ${order_items.user_id} = ${user_order_facts.user_id} ;;
+    relationship: many_to_one
+  }
+
   join: inventory_items {
     type: left_outer
     sql_on: ${order_items.inventory_item_id} = ${inventory_items.id} ;;
     relationship: one_to_one
   }
+
   join: products {
     view_label: "Purchased Products"
     type: left_outer
     sql_on: ${inventory_items.product_id} = ${products.id} ;;
     relationship: many_to_one
   }
+
   join: distribution_centers {
     type: left_outer
     sql_on: ${inventory_items.product_distribution_center_id} = ${distribution_centers.id} ;;
+    relationship: many_to_one
+  }
+
+  join: order_facts {
+    view_label: "Orders"
+    type: left_outer
+    sql_on: ${order_items.order_id} = ${order_facts.order_id} ;;
+    relationship: many_to_one
+  }
+
+  join: repeat_purchase_facts {
+    type: left_outer
+    sql_on: ${order_items.order_id} = ${repeat_purchase_facts.order_id} ;;
     relationship: many_to_one
   }
 }
