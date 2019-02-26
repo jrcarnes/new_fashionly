@@ -33,7 +33,7 @@ view: users {
 
   dimension: age_tier {
     type: tier
-    tiers: [0,10,20,30,40,50,60,70]
+    tiers: [10,20,30,40,50,60,70]
     style: integer
     sql: ${age} ;;
   }
@@ -57,6 +57,8 @@ view: users {
     type: string
     sql: ${TABLE}.traffic_source ;;
   }
+
+  ########## Address ##########
 
   dimension: zip {
     group_label: "Address"
@@ -91,6 +93,8 @@ view: users {
         ;;
   }
 
+  ########## geography ##########
+
   dimension: latitude {
     type: number
     hidden: yes
@@ -103,11 +107,30 @@ view: users {
     sql: ${TABLE}.longitude ;;
   }
 
+  dimension: approx_latitude {
+    type: number
+    hidden: yes
+    sql: round(${TABLE}.latitude,1) ;;
+  }
+
+  dimension: approx_longitude {
+    type: number
+    hidden: yes
+    sql: round(${TABLE}.longitude,1) ;;
+  }
+
   dimension: location {
-    group_label: "Address"
+    group_label: "Geography"
     type: location
     sql_latitude: ${TABLE}.latitude ;;
     sql_longitude: ${TABLE}.longitude ;;
+  }
+
+  dimension: approx_location {
+    group_label: "Geography"
+    type: location
+    sql_latitude: ${approx_latitude} ;;
+    sql_longitude: ${approx_longitude} ;;
   }
 
   dimension_group: created {
@@ -124,6 +147,16 @@ view: users {
     sql: ${TABLE}.created_at ;;
   }
 
+  dimension: days_since_signup {
+    type: number
+    sql: datediff(days, ${created_raw}, getdate()) ;;
+  }
+
+  dimension: months_since_signup {
+    type: number
+    sql: datediff(months, ${created_raw}, getdate()) ;;
+  }
+
   measure: count {
     type: count
     drill_fields: [detail*]
@@ -133,6 +166,18 @@ view: users {
     type: average
     sql: ${age} ;;
     drill_fields: [detail*]
+  }
+
+  measure: average_days_since_signup {
+    type: average
+    sql: ${days_since_signup} ;;
+    value_format_name: decimal_1
+  }
+
+  measure: average_months_since_signup {
+    type: average
+    sql: ${months_since_signup} ;;
+    value_format_name: decimal_1
   }
 
   set: detail {

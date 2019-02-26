@@ -8,7 +8,6 @@ view: user_order_facts {
         MAX(created_at) AS latest_order,
         COUNT(DISTINCT DATE_TRUNC('month', created_at)) AS number_of_distinct_months_with_orders
       FROM public.order_items  AS order_items
-      WHERE user_id = 1
       GROUP BY 1
        ;;
     datagroup_trigger: ecommerce_etl
@@ -27,13 +26,13 @@ view: user_order_facts {
 
   dimension_group: first_order {
     type: time
-    timeframes: [date, time, week, month, year]
+    timeframes: [raw, date, time, week, month, year]
     sql: ${TABLE}.first_order ;;
   }
 
   dimension_group: latest_order {
     type: time
-    timeframes: [date, time, week, month, year]
+    timeframes: [raw, date, time, week, month, year]
     sql: ${TABLE}.latest_order ;;
   }
 
@@ -50,6 +49,27 @@ view: user_order_facts {
     style: integer
   }
 
+  dimension: days_since_last_order {
+    type: number
+    sql: datediff(days, ${latest_order_raw}, getdate()) ;;
+  }
+
+  dimension: is_active {
+    type: yesno
+    sql: ${days_since_last_order} <= 90  ;;
+  }
+
+  measure: min_first_order_date {
+    type: date
+    sql: MIN(${first_order_raw}) ;;
+    convert_tz: no
+  }
+
+  measure: average_days_since_latest_order {
+    type: average
+    sql: ${days_since_last_order} ;;
+  }
+
   ########## lifetime behavior ##########
 
   dimension: lifetime_orders {
@@ -64,8 +84,13 @@ view: user_order_facts {
 
   dimension: lifetime_orders_tier {
     type: tier
-    tiers: [0,1,2,3,5,10]
+    tiers: [0,1,2,3,6,10]
     style: integer
+    sql: ${lifetime_orders} ;;
+  }
+
+  measure: total_lifetime_orders {
+    type: sum
     sql: ${lifetime_orders} ;;
   }
 
@@ -88,10 +113,16 @@ view: user_order_facts {
 
   dimension: lifetime_revenue_tier {
     type: tier
-    tiers: [0,25,50,100,200,500,1000]
+    tiers: [0,5,20,50,100,500,1000]
     style: relational
     sql: ${lifetime_revenue} ;;
     value_format_name: usd
+  }
+
+  measure: total_lifetime_revenue {
+    type: sum
+    value_format_name: usd
+    sql: ${lifetime_revenue} ;;
   }
 
   measure: average_lifetime_revenue {

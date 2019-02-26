@@ -39,6 +39,13 @@ view: order_items {
     drill_fields: [detail*]
   }
 
+  measure: average_items_per_order {
+    type: number
+    value_format_name: decimal_1
+    view_label: "Orders"
+    sql: 1.0 * ${count}/nullif(${order_count},0) ;;
+  }
+
   measure: count_distinct_last_28_days {
     label: "Count Sold in Trailing 28 Days"
     type: count
@@ -112,14 +119,39 @@ view: order_items {
   }
 
   dimension: reporting_period {
-    group_label: "Order Date"
+    type: string
     sql: CASE
         WHEN date_part('year', ${created_raw}) = date_part('year', current_date)
-        AND ${created_raw} < current_date THEN 'This Year to Date'
+        AND ${created_raw} <= getdate() THEN 'This Year to Date'
         WHEN date_part('year', ${created_raw}) + 1 = date_part('year', current_date)
         AND date_part('dayofyear', ${created_raw}) <= date_part('dayofyear', current_date)
         THEN 'Last Year to Date'
-        END;;
+        END
+        ;;
+  }
+
+  dimension: reporting_period_mtd {
+    type: string
+    sql: CASE
+        WHEN date_trunc('month', ${created_raw}) = date_trunc('month', current_date)
+          AND ${created_raw} < current_date
+          THEN 'This Month to Date'
+        WHEN dateadd(month, 1, date_trunc('month', ${created_raw})) = date_trunc('month', current_date)
+          AND date_part('day', ${created_raw}) < date_part('day', current_date)
+          THEN 'Last Month to Date'
+        END
+        ;;
+  }
+
+  dimension: is_mtd {
+    type: yesno
+    sql:  date_part('day', ${created_raw}) < date_part('day', current_date)
+        ;;
+  }
+
+  dimension: is_ytd {
+    type: yesno
+    sql: date_part('doy', ${created_raw}) < date_part('doy', current_date) ;;
   }
 
   dimension: days_since_sold {
@@ -140,6 +172,37 @@ view: order_items {
     sql: ${TABLE}.status ;;
   }
 
+  dimension: status_group_case {
+    hidden: yes
+    case: {
+      when: {
+        sql:  ${status} = 'Processing' ;;
+        label: "Processing"
+      }
+      when: {
+        sql: ${status} IN ('Shipped', 'Complete', 'Returned') ;;
+        label: "Completed"
+      }
+      when: {
+        sql: ${status} = 'Cancelled' ;;
+        label: "Cancelled"
+      }
+      else: "Unknown"
+    }
+  }
+
+  dimension: status_group_sql_case {
+    type: string
+    hidden: yes
+    sql: CASE
+        WHEN ${status} = 'Processing' THEN 'Processing'
+        WHEN ${status} IN ('Shipped', 'Complete', 'Returned') THEN 'Completed'
+        WHEN ${status} = 'Cancelled' THEN 'Cancelled'
+        ELSE 'Unknown'
+        END
+        ;;
+  }
+
   dimension: days_to_process {
     type: number
     sql: CASE
@@ -148,6 +211,11 @@ view: order_items {
         WHEN ${status} = 'Cancelled' THEN NULL
       END
         ;;
+  }
+
+  dimension: is_cancelled {
+    type: yesno
+    sql: ${status} = 'Cancelled' ;;
   }
 
   dimension: shipping_time {
@@ -201,16 +269,23 @@ view: order_items {
     drill_fields: [detail*]
   }
 
-  measure: total_gross_margin {
-    type: sum
-    sql: ${gross_margin} ;;
+  measure: average_sale_price {
+    type: average
+    sql: ${sale_price} ;;
     value_format_name: usd
     drill_fields: [detail*]
   }
 
-  measure: average_sale_price {
-    type: average
-    sql: ${sale_price} ;;
+  measure: cumulative_total_sales {
+    type: running_total
+    sql: ${total_sale_price} ;;
+    value_format_name: usd
+    drill_fields: [detail*]
+  }
+
+  measure: total_gross_margin {
+    type: sum
+    sql: ${gross_margin} ;;
     value_format_name: usd
     drill_fields: [detail*]
   }
@@ -242,6 +317,13 @@ view: order_items {
     drill_fields: [detail*]
   }
 
+  measure: average_order_amount {
+    type: number
+    view_label: "Orders"
+    value_format_name: usd
+    sql: ${total_sale_price}/nullif(${order_count},0) ;;
+  }
+
   ########## Returns ##########
 
   dimension: is_returned {
@@ -250,6 +332,7 @@ view: order_items {
   }
 
   measure: returned_count {
+    group_label: "Returns"
     type: count
     filters: {
       field: is_returned
@@ -259,6 +342,7 @@ view: order_items {
   }
 
   measure: returned_total_sale_price {
+    group_label: "Returns"
     type: sum
     sql: ${sale_price} ;;
     value_format_name: usd
@@ -268,14 +352,45 @@ view: order_items {
     }
   }
 
+  measure: total_gross_revenue {
+    group_label: "Returns"
+    type: sum
+    sql: ${sale_price} ;;
+    value_format_name: usd
+#     hidden: yes
+    filters: {
+      field: status
+      value: "-Cancelled, -Returned"
+    }
+  }
+
   measure: return_rate {
+    group_label: "Returns"
     type: number
     value_format_name: percent_2
     sql: 1.0 * ${returned_count}/NULLIF(${count},0) ;;
   }
 
+  measure: returning_customers_count {
+    group_label: "Returns"
+    type: count_distinct
+    sql: ${user_id} ;;
+    filters: {
+      field: is_returned
+      value: "yes"
+    }
+  }
+
+  measure: percentage_customers_returning {
+    group_label: "Returns"
+    type: number
+    value_format_name: percent_2
+    sql: ${returning_customers_count}*1.0/nullif(${users.count}, 0) ;;
+  }
+
   ########## repeat purchases ##########
-  dimension: days_until_next_order {
+
+  dimension: days_between_orders {
     view_label: "Repeat Purchase Facts"
     type: number
     sql: datediff('days', ${created_raw}, ${repeat_purchase_facts.next_order_raw}) ;;
@@ -284,7 +399,17 @@ view: order_items {
   dimension: is_next_order_within_30d {
     view_label: "Repeat Purchase Facts"
     type: yesno
-    sql: ${days_until_next_order} <= 30 ;;
+    sql: ${days_between_orders} <= 30 ;;
+  }
+
+  dimension: is_next_order_within_60d {
+    view_label: "Repeat Purchase Facts"
+    sql: ${days_between_orders} <= 60 ;;
+  }
+
+  dimension: has_subsequent_order {
+    type: yesno
+    sql: ${repeat_purchase_facts.next_order_raw} IS NOT NULL ;;
   }
 
   measure: count_with_repeat_purchase_within_30d  {
@@ -294,6 +419,23 @@ view: order_items {
       field: is_next_order_within_30d
       value: "Yes"
     }
+  }
+
+  measure: count_customers_with_repeat_purchase_within_60d {
+    view_label: "Repeat Purchase Facts"
+    type: count_distinct
+    sql: ${user_id} ;;
+    filters: {
+      field: is_next_order_within_60d
+      value: "Yes"
+    }
+  }
+
+  measure: 60d_repeat_purchase_rate {
+    view_label: "Repeat Purchase Facts"
+    type: number
+    value_format_name: percent_1
+    sql: 1.0*${count_customers_with_repeat_purchase_within_60d}/nullif(${users.count},0) ;;
   }
 
   measure: 30d_repeat_purchase_rate {
@@ -313,6 +455,12 @@ view: order_items {
       field: order_facts.is_first_purchase
       value: "Yes"
     }
+  }
+
+  measure: average_days_between_orders {
+    view_label: "Repeat Purchase Facts"
+    type: average
+    sql: ${days_between_orders} ;;
   }
 
   ########## Sets ##########

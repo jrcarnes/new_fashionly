@@ -44,6 +44,17 @@ view: products {
     type: string
     sql: ${TABLE}.brand ;;
     drill_fields: [category, name]
+    link: {
+      label: "Website"
+      url: "http://www.google.com/search?q={{ value | encode_uri }}+clothes&btnI"
+      icon_url: "http://www.google.com/s2/favicons?domain=www.{{ value | encode_uri }}.com"
+    }
+    link: {
+      label: "{{value}} Analytics Dashboard"
+#       url: "/dashboards/8?Brand%20Name={{ value | encode_uri }}"
+      url: "/dashboards/140?Brand={{ value | encode_uri }}"
+      icon_url: "http://www.looker.com/favicon.ico"
+    }
   }
 
   dimension: category {
