@@ -173,7 +173,6 @@ view: order_items {
   }
 
   dimension: status_group_case {
-    hidden: yes
     case: {
       when: {
         sql:  ${status} = 'Processing' ;;
@@ -193,7 +192,6 @@ view: order_items {
 
   dimension: status_group_sql_case {
     type: string
-    hidden: yes
     sql: CASE
         WHEN ${status} = 'Processing' THEN 'Processing'
         WHEN ${status} IN ('Shipped', 'Complete', 'Returned') THEN 'Completed'
